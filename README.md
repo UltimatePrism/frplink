@@ -52,10 +52,8 @@ frplink-server            服务端向导；-c 指定配置文件
 ## 编译
 
 ```
-go build -trimpath -ldflags "-s -w" .                      # 客户端
-go build -trimpath -ldflags "-s -w" -tags noweb ./cmd/frplink-server   # 服务端（noweb 跳过 frp 未随源码发布的管理页资源）
-go test ./...                                              # 单元测试
-go test -tags integration ./internal/runner                # 集成测试（自动编译 frps 做真实穿透验证）
+go build -trimpath -ldflags "-s -w" .                                    # 客户端
+go build -trimpath -ldflags "-s -w" -tags noweb ./cmd/frplink-server     # 服务端（noweb 跳过 frp 未随源码发布的管理页资源）
 ```
 
 ## 安全说明
