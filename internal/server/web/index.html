@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FRPLink - frp 客户端管理器</title>
+<style>
+:root{
+  --bg:#17181a;--panel:#1f2124;--panel2:#26282c;--line:#34373b;
+  --txt:#e4e6e8;--muted:#9aa0a6;--dim:#6b7075;
+  --acc:#5b9dff;--ok:#22c55e;--err:#ef4444;
+  --radius:10px;font-size:14px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--txt);font-family:-apple-system,"Segoe UI","Microsoft YaHei","PingFang SC",sans-serif;min-height:100vh;padding:0 15px 15px}
+button{font-family:inherit}
+header{display:flex;align-items:center;gap:18px;padding:12px 20px;border-bottom:1px solid var(--line);background:var(--panel);margin:0 -15px 15px}
+.logo{font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px;white-space:nowrap}
+nav{display:flex;gap:4px}
+nav button{background:none;border:none;color:var(--muted);padding:7px 13px;border-radius:8px;cursor:pointer;font-size:13.5px}
+nav button.active{background:var(--panel2);color:var(--txt);font-weight:600}
+nav button:hover{color:var(--txt)}
+/* ---- 头部与列表 ---- */
+.header-actions{margin-left:auto;display:flex;gap:8px;align-items:center;position:relative}
+.btn{display:inline-flex;align-items:center;gap:6px;background:var(--panel2);color:var(--txt);border:1px solid var(--line);padding:7px 13px;border-radius:8px;cursor:pointer;font-size:13px;transition:.15s}
+.btn:hover{border-color:var(--acc);color:#fff}
+.btn.primary{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}
+.btn.small{padding:4px 10px;font-size:12px;border-radius:7px}
+.settings-info{margin-top:18px;padding-top:12px;border-top:1px solid var(--line);color:var(--dim);font-size:12px;line-height:1.9;word-break:break-all}
+.menu{position:absolute;right:0;top:calc(100% + 10px);background:var(--panel2);border:1px solid var(--line);border-radius:9px;min-width:160px;box-shadow:0 10px 30px rgba(0,0,0,.45);display:none;z-index:30;overflow:hidden}
+.menu.show{display:block}
+.menu-item{padding:10px 14px;font-size:13px;cursor:pointer}
+.menu-item:hover{background:var(--panel);color:#fff}
+.srv-head{display:grid;grid-template-columns:40px 20fr 20fr 13fr 10fr 10fr 10fr 178px;gap:10px;align-items:center;padding:0 12px 0 0;margin-bottom:6px;color:var(--dim);font-size:12px}
+.srv-head .c{text-align:center}
+
+.srv-list{display:flex;flex-direction:column;gap:8px}
+.srv-row{display:grid;grid-template-columns:40px 20fr 20fr 13fr 10fr 10fr 10fr 178px;gap:10px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:0 12px 0 0;min-height:52px}
+.srv-row .cell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
+.srv-row .name{font-weight:600}
+.srv-row .mono,.mono{font-family:Consolas,Menlo,monospace;font-size:12.5px}
+.srv-row .proto{color:var(--muted);font-size:12px}
+.srv-row .speed{color:var(--muted);font-size:12.5px;text-align:center}
+.srv-row .speed b{color:var(--txt);font-weight:600}
+.srv-row .traffic{color:var(--muted);font-size:12.5px;text-align:center}
+.srv-row .actions{display:flex;gap:8px;justify-content:flex-start;padding:8px 0;white-space:nowrap}
+.btn-run{border:none;border-radius:7px;padding:6px 13px;font-size:12.5px;font-weight:700;cursor:pointer;min-width:56px;color:#fff}
+.btn-run.start{background:var(--ok)}
+.btn-run.start:hover{background:#2fd469}
+.btn-run.stop{background:var(--err)}
+.btn-run.stop:hover{background:#f36161}
+.btn-run.conn{background:#4b5563;color:#9aa0a6;cursor:default}
+.btn-edit{background:var(--panel2);border:1px solid var(--line);border-radius:7px;padding:6px 11px;font-size:12.5px;color:var(--txt);cursor:pointer}
+.btn-edit:hover{border-color:var(--acc)}
+.empty{text-align:center;color:var(--dim);padding:56px 0;font-size:13px}
+.srv-row .drag{align-self:stretch;display:flex;align-items:center;justify-content:center;cursor:grab;color:var(--dim);font-size:14px;user-select:none;letter-spacing:-1px;border-radius:var(--radius) 0 0 var(--radius)}
+.srv-row .drag:hover{color:var(--muted);background:var(--panel2)}
+.srv-row.dragging{opacity:.45}
+.srv-row.drag-over{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc) inset}
+/* ---- 弹窗 ---- */
+.overlay{position:fixed;inset:0;background:rgba(5,6,8,.66);display:none;align-items:flex-start;justify-content:center;z-index:50;padding:40px 16px;overflow:auto}
+.overlay.show{display:flex}
+.modal{background:var(--panel);border:1px solid var(--line);border-radius:13px;width:680px;max-width:100%;padding:22px}
+.modal h2{font-size:15px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center}
+.modal .close{background:none;border:none;color:var(--muted);font-size:19px;cursor:pointer}
+.field{display:flex;flex-direction:column;gap:5px;margin-bottom:12px}
+.field label{font-size:12.5px;color:var(--muted)}
+.field input,.field select,.field textarea{background:var(--bg);border:1px solid var(--line);border-radius:8px;color:var(--txt);padding:8px 10px;font-size:13.5px;font-family:inherit;width:100%}
+.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--acc)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.row3{display:grid;grid-template-columns:2fr 1fr 1fr;gap:12px}
+.checks{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px}
+.checks label{display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer}
+.checks input{accent-color:var(--acc)}
+.section-title{font-size:13px;font-weight:700;color:var(--muted);margin:16px 0 10px;display:flex;align-items:center;justify-content:space-between}
+/* 穿透规则编辑 */
+.px-edit{position:relative;border:1px solid var(--line);border-radius:10px;margin-bottom:10px;background:var(--panel2)}
+.px-edit .r1{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;padding:9px 10px 0 10px;align-items:end}
+.px-edit .r1 input,.px-edit .r1 select{width:100%}
+.px-edit .r1 .del{display:none}
+.px-edit > .del{position:absolute;top:5px;right:7px;background:none;border:none;color:var(--dim);cursor:pointer;font-size:15px;padding:2px;line-height:1}
+.px-edit > .del:hover{color:var(--err)}
+.px-edit .body-row{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;padding:10px 10px 10px;align-items:end}
+.px-f{display:block;font-size:11px;color:var(--dim);text-indent:2px}
+.px-f input,.px-f select{margin-top:3px}
+.px-f input,.px-f select{background:var(--bg);border:1px solid var(--line);border-radius:7px;color:var(--txt);padding:6px 8px;font-size:12.5px;width:100%}
+
+.px-f.grow input{width:100%}
+.px-enable{grid-column:4;width:34px;justify-self:end;display:flex;flex-direction:column;gap:3px;align-items:center;text-indent:0}
+.px-enable .switch{margin:5px 0 6px}
+.switch{position:relative;display:inline-block;width:34px;height:19px;flex:none}
+.switch input{opacity:0;width:0;height:0}
+.switch i{position:absolute;inset:0;background:var(--line);border-radius:99px;transition:.15s;cursor:pointer}
+.switch i:before{content:"";position:absolute;width:13px;height:13px;left:3px;top:3px;border-radius:50%;background:#fff;transition:.15s}
+.switch input:checked + i{background:var(--ok)}
+.switch input:checked + i:before{transform:translateX(15px)}
+.px-edit .del{background:none;border:none;color:var(--dim);cursor:pointer;font-size:16px}
+.px-edit .del:hover{color:var(--err)}
+/* 导入预览 */
+.preview{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:14px;margin:12px 0;font-size:13px}
+.preview .kv{display:grid;grid-template-columns:110px 1fr;gap:6px 10px}
+.preview .kv b{color:var(--muted);font-weight:normal}
+.preview table{width:100%;border-collapse:collapse;margin-top:8px;font-size:12.5px}
+.preview th,.preview td{text-align:left;padding:5px 7px;border-bottom:1px solid var(--line)}
+.preview th{color:var(--muted);font-weight:normal}
+textarea.code{font-family:Consolas,Menlo,monospace;font-size:12px;word-break:break-all;line-height:1.5}
+.result-box{background:var(--bg);border:1px solid var(--acc);border-radius:10px;padding:12px;margin-top:12px}
+.result-box textarea{background:transparent;border:none;color:#9fc0ff;width:100%;font-family:Consolas,Menlo,monospace;font-size:12px;resize:none;word-break:break-all}
+/* 日志 */
+#logs-pre{background:#111214;border:1px solid var(--line);border-radius:10px;padding:14px;font-family:Consolas,Menlo,monospace;font-size:12px;line-height:1.65;color:#9fb0cd;white-space:pre-wrap;word-break:break-all;max-height:74vh;overflow:auto}
+.toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%);background:#242629;border:1px solid var(--acc);color:#fff;padding:10px 20px;border-radius:10px;z-index:99;display:none;font-size:13px;box-shadow:0 8px 30px rgba(0,0,0,.5)}
+.note{font-size:12px;color:#eab308;margin-top:8px}
+.gen-layout{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+@media(max-width:900px){.gen-layout{grid-template-columns:1fr}.srv-row{grid-template-columns:40px 1.2fr 1fr 60px max-content}.srv-row .speed{display:none}.srv-head{grid-template-columns:40px 1.2fr 1fr 60px max-content}.srv-head .speed{display:none}.srv-row .traffic,.srv-head .traffic{display:none}}
+.sidebar-hint{color:var(--dim);font-size:12px;line-height:1.8;background:var(--panel);border:1px dashed var(--line);border-radius:10px;padding:14px}
+code.k{background:var(--panel2);border-radius:5px;padding:1px 6px;font-size:12px;color:#9fc0ff}
+.editor-foot{display:flex;gap:10px;margin-top:14px;align-items:center}
+.editor-foot .danger{margin-left:auto;color:var(--err);background:none;border:none;font-size:12.5px;cursor:pointer}
+.editor-foot .danger:hover{text-decoration:underline}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">FRPLink</div>
+  <nav>
+    <button id="tab-servers" class="active" onclick="switchTab('servers')">服务器</button>
+    <button id="tab-gen" onclick="switchTab('gen')">生成分享码</button>
+    <button id="tab-logs" onclick="switchTab('logs')">运行日志</button>
+  </nav>
+  <div class="header-actions">
+    <button class="btn" onclick="toggleAddMenu(event)">添加</button>
+    <div class="menu" id="add-menu">
+      <div class="menu-item" onclick="addMenuAction('manual')">添加服务器</div>
+      <div class="menu-item" onclick="addMenuAction('import')">粘贴分享码</div>
+    </div>
+    <button class="btn" onclick="openSettings()">设置</button>
+  </div>
+</header>
+
+<!-- 服务器列表 -->
+<section id="view-servers">
+  <div class="srv-head">
+    <div></div>
+    <div>节点名称</div>
+    <div>远程服务器</div>
+    <div>协议</div>
+    <div class="c">上行速率</div>
+    <div class="c">下行速率</div>
+    <div class="c traffic">使用流量</div>
+    <div>操作</div>
+  </div>
+  <div class="srv-list" id="srv-list"></div>
+  <div class="empty" id="server-empty" style="display:none">暂无服务器，点击右上角「添加」创建</div>
+</section>
+
+<!-- 设置 -->
+<div class="overlay" id="ov-settings">
+  <div class="modal" style="width:440px">
+    <h2>设置<button class="close" onclick="closeOverlay('ov-settings')">×</button></h2>
+    <div class="field"><label>连接超时（秒）—— 启动后持续"连接中"超过该时长将自动停止并提示</label>
+      <input id="set-timeout" type="number" min="3" max="300" value="10">
+    </div>
+    <button class="btn primary" onclick="saveSettings()">保存设置</button>
+    <div class="settings-info">
+      <div id="set-ver"></div>
+      <div id="set-data"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 生成分享码 -->
+<section id="view-gen" style="display:none">
+  <div class="gen-layout">
+    <div>
+      <div class="section-title" style="margin-top:0">服务器连接信息（服务端 frps 的参数）</div>
+      <div class="field"><label>备注名（对方导入后显示的名称）</label><input id="gen-name" placeholder="例如：公司中转节点"></div>
+      <div class="row3">
+        <div class="field"><label>服务器地址 *</label><input id="gen-addr" placeholder="frps 公网地址 / 域名"></div>
+        <div class="field"><label>端口</label><input id="gen-port" type="number" value="7000"></div>
+        <div class="field"><label>用户名 user</label><input id="gen-user" placeholder="可留空"></div>
+      </div>
+      <div class="field"><label>认证令牌 token（frps 中 auth.token）</label><input id="gen-token" placeholder="与 frps 一致"></div>
+      <div class="row2">
+        <div class="field"><label>连接协议</label>
+          <select id="gen-proto"><option value="tcp">tcp</option><option value="websocket">websocket</option><option value="wss">wss</option><option value="quic">quic</option><option value="kcp">kcp</option></select>
+        </div>
+        <div class="field"><label>分享码过期时间（可留空）</label><input id="gen-expire" type="datetime-local"></div>
+      </div>
+      <div class="checks">
+        <label><input type="checkbox" id="gen-tls" checked> 启用 TLS</label>
+        <label><input type="checkbox" id="gen-enc"> 穿透流量加密</label>
+        <label><input type="checkbox" id="gen-cmp"> 穿透流量压缩</label>
+      </div>
+      <div class="field"><label>给对方的备注说明</label><input id="gen-note" placeholder="例如：到期时间 2027-01-01，勿外传"></div>
+      <div class="section-title">预置穿透规则（可选，帮对方填好）<button class="btn small" onclick="addProxyRow('gen-px')">添加</button></div>
+      <div id="gen-px"></div>
+      <button class="btn primary" style="margin-top:6px" onclick="doGenCode()">生成分享码</button>
+    </div>
+    <div>
+      <div class="sidebar-hint">
+        <b>这是什么？</b><br>
+        分享码 = 一段包含 frps 连接信息（地址/端口/令牌/预置规则）的文本。<br>
+        • 服务端管理员填好左侧表单生成，发给使用者；<br>
+        • 使用者在「服务器」页粘贴即可一键添加；<br>
+        • 如果 frps 就在本机，也可以直接运行：<br>
+        <code class="k">frplink gencode -c frps.toml</code><br>
+        注意：分享码包含认证令牌，等同于密码，请通过可信渠道发送。
+      </div>
+      <div class="result-box" id="gen-result" style="display:none">
+        <div style="color:var(--muted);font-size:12.5px;margin-bottom:8px">生成成功（点击复制后发给对方）</div>
+        <textarea id="gen-code" rows="7" readonly></textarea>
+        <button class="btn primary small" style="margin-top:10px" onclick="copyBox('gen-code')">复制</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 日志 -->
+<section id="view-logs" style="display:none">
+  <div style="display:flex;gap:10px;margin-bottom:12px;align-items:center">
+    <button class="btn small" id="log-auto" onclick="toggleLogAuto()">暂停自动刷新</button>
+    <button class="btn small" onclick="loadLogs(true)">立即刷新</button>
+    <span style="color:var(--dim);font-size:12px">所有服务器的 frp 客户端日志（最近 400 行）</span>
+  </div>
+  <pre id="logs-pre">（暂无日志）</pre>
+</section>
+
+<!-- 编辑服务器 -->
+<div class="overlay" id="ov-editor">
+  <div class="modal">
+    <h2><span id="editor-title">添加服务器</span><button class="close" onclick="closeOverlay('ov-editor')">×</button></h2>
+    <div class="field"><label>备注名</label><input id="ed-name" placeholder="例如：家里的小主机"></div>
+    <div class="row3">
+      <div class="field"><label>服务器地址 *</label><input id="ed-addr" placeholder="frps 地址 / 域名"></div>
+      <div class="field"><label>端口</label><input id="ed-port" type="number" value="7000"></div>
+      <div class="field"><label>用户名 user</label><input id="ed-user" placeholder="可留空"></div>
+    </div>
+    <div class="field"><label>认证令牌 token</label><input id="ed-token" placeholder="与服务端 auth.token 一致"></div>
+    <div class="row2">
+      <div class="field"><label>连接协议</label>
+        <select id="ed-proto"><option value="tcp">tcp</option><option value="websocket">websocket</option><option value="wss">wss</option><option value="quic">quic</option><option value="kcp">kcp</option></select>
+      </div>
+      <div class="field"><label>TLS</label><select id="ed-tls"><option value="1">启用（推荐）</option><option value="0">禁用</option></select></div>
+    </div>
+    <div class="checks">
+      <label><input type="checkbox" id="ed-enc"> 穿透流量加密</label>
+      <label><input type="checkbox" id="ed-cmp"> 穿透流量压缩</label>
+      <label><input type="checkbox" id="ed-retry" checked> 失败自动重连</label>
+      <label><input type="checkbox" id="ed-autostart"> 随程序启动</label>
+    </div>
+    <div class="section-title">映射列表<button class="btn small" onclick="addProxyRow('ed-px')">添加</button></div>
+    <div id="ed-px"></div>
+    <div class="editor-foot">
+      <button class="btn primary" onclick="saveEditor(false)">保存</button>
+      <button class="btn" onclick="saveEditor(true)">保存并启动</button>
+      <span style="color:var(--dim);font-size:12px" id="editor-note"></span>
+      <button class="danger" id="ed-delete" style="display:none" onclick="deleteFromEditor()">删除此服务器</button>
+    </div>
+  </div>
+</div>
+
+<!-- 导入分享码 -->
+<div class="overlay" id="ov-import">
+  <div class="modal">
+    <h2>导入分享码<button class="close" onclick="closeOverlay('ov-import')">×</button></h2>
+    <div class="field"><label>粘贴服务端发给你的 FRPLINK 分享码</label>
+      <textarea id="imp-code" class="code" rows="4" placeholder="FRPLINK1.eyJ2IjoxLCJhZGRyIjoi..." style="width:100%"></textarea>
+    </div>
+    <button class="btn" onclick="doPreview()">解析预览</button>
+    <div id="imp-preview"></div>
+    <div class="field" id="imp-name-wrap" style="display:none"><label>名称（可修改）</label><input id="imp-name"></div>
+    <div style="display:flex;gap:10px;margin-top:6px;align-items:center">
+      <button class="btn primary" id="imp-btn" disabled onclick="doImport(false)">导入</button>
+      <button class="btn" id="imp-btn2" disabled onclick="doImport(true)">导入并启动</button>
+    </div>
+  </div>
+</div>
+
+<!-- 分享码展示 -->
+<div class="overlay" id="ov-share">
+  <div class="modal">
+    <h2>导出分享码<button class="close" onclick="closeOverlay('ov-share')">×</button></h2>
+    <div style="color:var(--muted);font-size:12.5px;margin-bottom:10px">注意：包含认证令牌，等同于密码，请勿公开传播。</div>
+    <textarea id="share-code" class="code" rows="6" readonly style="width:100%"></textarea>
+    <button class="btn primary small" style="margin-top:10px" onclick="copyBox('share-code')">复制</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+let TOKEN = new URLSearchParams(location.search).get('k');
+if (TOKEN) { localStorage.setItem('frplink-k', TOKEN); }
+else { TOKEN = localStorage.getItem('frplink-k'); }
+
+const $ = id => document.getElementById(id);
+const PROXY_TYPES = ['tcp','udp','http','https','stcp','xtcp','sudp'];
+let servers = [];
+let editingId = null;
+let importPayload = null;
+let logAuto = true;
+let currentTab = 'servers';
+
+function toast(msg, ok=true){
+  const t=$('toast'); t.textContent=msg; t.style.color=ok?'#fff':'#fda4af';
+  t.style.borderColor=ok?'var(--acc)':'var(--err)'; t.style.display='block';
+  clearTimeout(t._h); t._h=setTimeout(()=>t.style.display='none',ok?2600:7000);
+}
+async function api(path, opts={}){
+  opts.headers = Object.assign({'X-Frp-Link-Key':TOKEN,'Content-Type':'application/json'}, opts.headers||{});
+  const r = await fetch(path, opts);
+  let j; try{ j = await r.json(); }catch(e){ throw new Error('HTTP '+r.status); }
+  if(!j.ok) throw new Error(j.error||('HTTP '+r.status));
+  return j.data;
+}
+function esc(s){ return String(s??'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function closeOverlay(id){ $(id).classList.remove('show'); }
+function openOverlay(id){ $(id).classList.add('show'); }
+function copyBox(id){
+  const ta=$(id); ta.select();
+  (navigator.clipboard ? navigator.clipboard.writeText(ta.value) : Promise.reject())
+    .then(()=>toast('已复制到剪贴板'))
+    .catch(()=>{ document.execCommand('copy'); toast('已复制到剪贴板'); });
+}
+function fmtBytes(b){
+  if(b<1024) return b+' B';
+  if(b<1024*1024) return (b/1024).toFixed(1)+' KB';
+  if(b<1024*1024*1024) return (b/1024/1024).toFixed(1)+' MB';
+  if(b<1024*1024*1024*1024) return (b/1024/1024/1024).toFixed(2)+' GB';
+  return (b/1024/1024/1024/1024).toFixed(2)+' TB';
+}
+function fmtSpeed(b){
+  if(b<1024) return b+' B/s';
+  if(b<1024*1024) return (b/1024).toFixed(1)+' KB/s';
+  return (b/1024/1024).toFixed(2)+' MB/s';
+}
+
+// ---------- 标签页 ----------
+function switchTab(t){
+  currentTab = t;
+  for(const v of ['servers','gen','logs']) $('view-'+v).style.display = v===t?'':'none';
+  for(const v of ['servers','gen','logs']) $('tab-'+v).classList.toggle('active', v===t);
+  if(t==='logs') loadLogs(true);
+}
+
+// ---------- 添加菜单 ----------
+function toggleAddMenu(e){ e.stopPropagation(); $('add-menu').classList.toggle('show'); }
+document.addEventListener('click', ()=> $('add-menu').classList.remove('show'));
+function addMenuAction(kind){
+  $('add-menu').classList.remove('show');
+  if(kind==='manual') openEditor(null);
+  else openImport();
+}
+
+// ---------- 服务器列表（竖排行） ----------
+let prevStatus = {};
+async function refreshServers(){
+  try{
+    const d = await api('/api/servers');
+    servers = d.servers||[];
+    for(const s of servers){
+      const prev = prevStatus[s.id];
+      if(prev && prev!==s.status.status && s.status.status==='error' && s.status.lastErr){
+        toast(s.name+'：'+friendlifyErr(s.status.lastErr), false);
+      }
+      prevStatus[s.id] = s.status.status;
+    }
+    renderServers();
+  }catch(e){ }
+}
+function renderServers(){
+  const list=$('srv-list');
+  $('server-empty').style.display = servers.length?'none':'';
+  list.innerHTML = servers.map(s=>{
+    const st = s.status.status; // online / connecting / retrying / error / stopped
+    const proto = ((s.protocol||'tcp').toUpperCase()) + (s.tls ? '/TLS' : '');
+    let runBtn;
+    if(st==='online'){
+      runBtn = `<button class="btn-run stop" onclick="toggleRun('${s.id}')">停止</button>`;
+    } else if(st==='connecting' || st==='retrying'){
+      runBtn = `<button class="btn-run conn" disabled>连接中</button>`;
+    } else {
+      runBtn = `<button class="btn-run start" onclick="toggleRun('${s.id}')">启动</button>`;
+    }
+    return `<div class="srv-row" id="row-${s.id}"
+      ondragstart="rowDragStart(event,'${s.id}')" ondragend="rowDragEnd(event)"
+      ondragover="rowDragOver(event)" ondragleave="rowDragLeave(event)" ondrop="rowDrop(event,'${s.id}')">
+      <div class="drag" title="拖动调整顺序" onmousedown="enableDrag('${s.id}')" onmouseup="disableDrag('${s.id}')">&#x2807;</div>
+      <div class="cell name" title="${esc(s.name||'')}">${esc(s.name||'未命名')}</div>
+      <div class="cell mono" title="${esc(s.serverAddr)}:${s.serverPort}">${esc(s.serverAddr)}:${s.serverPort}</div>
+      <div class="cell proto" title="${esc(proto)}">${esc(proto)}</div>
+      <div class="cell speed">↑ <b>${fmtSpeed(s.status.speedUp||0)}</b></div>
+      <div class="cell speed">↓ <b>${fmtSpeed(s.status.speedDown||0)}</b></div>
+      <div class="cell traffic">${fmtBytes(s.status.traffic||0)}</div>
+      <div class="actions">
+        ${runBtn}
+        <button class="btn-edit" onclick="openEditor('${s.id}')">编辑</button>
+        <button class="btn-edit" onclick="showShare('${s.id}')">分享</button>
+      </div>
+    </div>`;
+  }).join('');
+  // 内容无变化时跳过重建，避免 2 秒刷新打断用户点击/悬停
+  if(renderServers._last === html) return;
+  renderServers._last = html;
+  list.innerHTML = html;
+}
+// ---------- 拖拽排序 ----------
+let dragSrcId = null;
+function enableDrag(id){ const row=document.getElementById('row-'+id); if(row) row.draggable=true; }
+function disableDrag(id){ const row=document.getElementById('row-'+id); if(row) row.draggable=false; }
+function rowDragStart(e, id){
+  dragSrcId = id;
+  try { e.dataTransfer.effectAllowed='move'; e.dataTransfer.setData('text/plain', id); } catch(_){}
+  const row = e.currentTarget.closest('.srv-row') || e.target.closest('.srv-row');
+  if (row) row.classList.add('dragging');
+}
+function rowDragEnd(e){
+  dragSrcId = null;
+  document.querySelectorAll('.srv-row').forEach(r=>{ r.classList.remove('dragging','drag-over'); r.draggable=false; });
+}
+function rowDragOver(e){ e.preventDefault(); if(e.currentTarget.classList) e.currentTarget.classList.add('drag-over'); }
+function rowDragLeave(e){ if(e.currentTarget.classList) e.currentTarget.classList.remove('drag-over'); }
+async function rowDrop(e, id){
+  e.preventDefault(); e.currentTarget.classList.remove('drag-over');
+  const src = dragSrcId || (e.dataTransfer ? e.dataTransfer.getData('text/plain') : null);
+  rowDragEnd(e);
+  if(!src || src===id) return;
+  const arr = servers.map(x=>x.id);
+  const from = arr.indexOf(src), to = arr.indexOf(id);
+  if(from<0 || to<0) return;
+  arr.splice(to, 0, arr.splice(from,1)[0]);
+  // 乐观更新本地顺序
+  const map = Object.fromEntries(servers.map(x=>[x.id,x]));
+  servers = arr.map(i=>map[i]);
+  renderServers();
+  try{ await api('/api/servers/order',{method:'PUT',body:JSON.stringify({ids:arr})}); }
+  catch(err){ toast('排序保存失败: '+err.message,false); refreshServers(); }
+}
+
+// ---------- 设置 ----------
+async function openSettings(){
+  try{
+    const d = await api('/api/settings');
+    $('set-timeout').value = d.connectTimeoutSec;
+  }catch(e){ $('set-timeout').value = 10; }
+  openOverlay('ov-settings');
+}
+async function saveSettings(){
+  const v = parseInt($('set-timeout').value)||10;
+  try{
+    await api('/api/settings',{method:'PUT',body:JSON.stringify({connectTimeoutSec:v})});
+    toast('设置已保存（连接超时 '+v+' 秒）');
+    closeOverlay('ov-settings');
+  }catch(e){ toast(e.message,false); }
+}
+
+// ---------- 连接测试 ----------
+function friendlifyErr(e){
+  e = e || '';
+  if(/doesn't match token/i.test(e)) return '认证令牌与服务端不一致';
+  if(/connection refused|connectex/i.test(e)) return '无法连接到服务器（地址/端口错误或服务未启动）';
+  if(/i\/o timeout|connection timed out|timeout/i.test(e)) return '连接超时（请检查网络与防火墙）';
+  if(/no such host/i.test(e)) return '域名无法解析';
+  if(/tls|certificate/i.test(e)) return 'TLS 握手失败（尝试在编辑里关闭 TLS）';
+  if(/connect to server failed/i.test(e)) return '无法连接到服务器';
+  return e;
+}
+async function runConnTest(entry){
+  toast('正在测试与 '+entry.serverAddr+':'+entry.serverPort+' 的连接…');
+  try{
+    const d = await api('/api/test',{method:'POST',body:JSON.stringify(entry)});
+    if(d.ok) toast('连接测试通过（'+d.ms+' ms）');
+    else toast('连接失败: '+friendlifyErr(d.error),false);
+  }catch(e){ toast('连接测试失败: '+e.message,false); }
+}
+
+async function toggleRun(id){
+  const s = servers.find(x=>x.id===id); if(!s) return;
+  try{
+    if(s.status.status==='online'){ await api(`/api/servers/${id}/stop`,{method:'POST'}); toast('已停止'); }
+    else{ await api(`/api/servers/${id}/start`,{method:'POST'}); toast('连接中…'); }
+    refreshServers();
+  }catch(e){ toast(e.message,false); }
+}
+async function deleteFromEditor(){
+  if(!editingId) return;
+  const s = servers.find(x=>x.id===editingId);
+  if(!confirm(`确定删除服务器「${s?s.name:''}」及其全部穿透规则？`)) return;
+  try{
+    await api(`/api/servers/${editingId}`,{method:'DELETE'});
+    closeOverlay('ov-editor'); toast('已删除'); refreshServers();
+  }catch(e){ toast(e.message,false); }
+}
+async function showShare(id){
+  try{
+    const d = await api(`/api/servers/${id}/export`);
+    $('share-code').value = d.code; openOverlay('ov-share');
+  }catch(e){ toast(e.message,false); }
+}
+
+// ---------- 穿透规则编辑器 ----------
+function pxField(label, input){ return `<div class="field" style="margin:0"><label>${label}</label>${input}</div>`; }
+function addProxyRow(containerId, rule){
+  const box=$(containerId);
+  const div=document.createElement('div'); div.className='px-edit';
+  div._rule = rule||{type:'tcp', localIp:'127.0.0.1', useEncryption:null, useCompression:null};
+  renderProxyRow(div); box.appendChild(div);
+}
+function renderProxyRow(div){
+  const r=div._rule;
+  const typeOpts=PROXY_TYPES.map(t=>`<option value="${t}" ${r.type===t?'selected':''}>${t}</option>`).join('');
+  const isHttp=r.type==='http'||r.type==='https', isSecret=['stcp','xtcp','sudp'].includes(r.type);
+  const needRemote=r.type==='tcp'||r.type==='udp';
+  const auth=(r.httpUser||r.httpPassword)?(r.httpUser+':'+r.httpPassword):'';
+  const sel=(on)=>`<option value="1" ${on?'selected':''}>开启</option><option value="0" ${on?'':'selected'}>关闭</option>`;
+  div.innerHTML=`
+    <div class="r1">
+      <label class="px-f">名称<input data-k="name" placeholder="留空自动生成" value="${esc(r.name||'')}"></label>
+      <label class="px-f">协议<select data-k="type">${typeOpts}</select></label>
+      <label class="px-f">加密<select data-k="enc">${sel(r.useEncryption!==false)}</select></label>
+      <label class="px-f">压缩<select data-k="cmp">${sel(r.useCompression!==false)}</select></label>
+    </div>
+    <button class="del" title="删除此映射">×</button>
+    <div class="body-row">
+      <label class="px-f">本地 IP<input data-k="localIp" value="${esc(r.localIp||'127.0.0.1')}"></label>
+      <label class="px-f">本地映射端口<input data-k="localPort" type="number" value="${r.localPort||''}"></label>
+      ${needRemote?`<label class="px-f">远程端口*<input data-k="remotePort" type="number" value="${r.remotePort||''}"></label>`:''}
+      ${isHttp?`
+      <label class="px-f">子域名<input data-k="subDomain" value="${esc(r.subDomain||'')}"></label>
+      <label class="px-f grow">自定义域名（逗号分隔）<input data-k="domains" value="${esc((r.customDomains||[]).join(','))}"></label>
+      <label class="px-f">HTTP 认证<input data-k="httpAuth" placeholder="用户:密码 可选" value="${esc(auth)}"></label>`:''}
+      ${isSecret?`
+      <label class="px-f grow">共享密钥 secretKey<input data-k="secretKey" value="${esc(r.secretKey||'')}"></label>`:''}
+      <div class="px-f px-enable"><label>启用</label><label class="switch"><input type="checkbox" data-k="enabled" ${r.enabled===false?'':'checked'}><i></i></label></div>
+    </div>`;
+  div.querySelector('.del').onclick=()=>div.remove();
+  div.querySelector('[data-k=type]').onchange=e=>{ r.type=e.target.value; renderProxyRow(div); };
+}
+function collectProxies(containerId){
+  const rules=[];
+  for(const div of document.querySelectorAll('#'+containerId+' .px-edit')){
+    const g=k=>div.querySelector(`[data-k=${k}]`);
+    const r={ type:g('type').value, name:g('name').value.trim(),
+      localIp:g('localIp').value.trim()||'127.0.0.1', localPort:parseInt(g('localPort').value)||0,
+      remotePort:parseInt(g('remotePort').value)||0,
+      subDomain:g('subDomain')?g('subDomain').value.trim():'',
+      customDomains:(g('domains')?g('domains').value:'').split(/[,，\s]+/).map(s=>s.trim()).filter(Boolean),
+    };
+    if(g('secretKey')) r.secretKey=g('secretKey').value;
+    const authEl=g('httpAuth');
+    if(authEl && authEl.value.includes(':')){
+      const idx=authEl.value.indexOf(':');
+      r.httpUser=authEl.value.slice(0,idx);
+      r.httpPassword=authEl.value.slice(idx+1);
+    }
+    r.useEncryption = g('enc').value==='1';
+    r.useCompression = g('cmp').value==='1';
+    r.enabled = g('enabled').checked;
+    rules.push(r);
+  }
+  return rules;
+}
+
+// ---------- 编辑弹窗 ----------
+function openEditor(id){
+  editingId=id;
+  const s = id? servers.find(x=>x.id===id) : null;
+  $('editor-title').textContent = s?'编辑服务器':'添加服务器';
+  $('editor-note').textContent = s&&s.running?'（保存后将自动重启生效）':'';
+  $('ed-delete').style.display = s?'':'none';
+  $('ed-name').value=s?(s.name||''):'';
+  $('ed-addr').value=s?s.serverAddr:'';
+  $('ed-port').value=s?s.serverPort:7000;
+  $('ed-user').value=s?(s.user||''):'';
+  $('ed-token').value=s?(s.token||''):'';
+  $('ed-proto').value=s?(s.protocol||'tcp'):'tcp';
+  $('ed-tls').value=s&&s.tls===false?'0':'1';
+  $('ed-enc').checked=!!(s&&s.useEncryption);
+  $('ed-cmp').checked=!!(s&&s.useCompression);
+  $('ed-retry').checked=s?!!s.autoRetry:true;
+  $('ed-autostart').checked=!!(s&&s.autoStart);
+  $('ed-px').innerHTML='';
+  if(s) (s.proxies||[]).forEach(r=>addProxyRow('ed-px',r));
+  openOverlay('ov-editor');
+}
+async function saveEditor(start){
+  const entry={
+    id:editingId, name:$('ed-name').value.trim(),
+    serverAddr:$('ed-addr').value.trim(), serverPort:parseInt($('ed-port').value)||7000,
+    user:$('ed-user').value.trim(), token:$('ed-token').value,
+    protocol:$('ed-proto').value, tls:$('ed-tls').value==='1',
+    useEncryption:$('ed-enc').checked, useCompression:$('ed-cmp').checked,
+    autoRetry:$('ed-retry').checked, autoStart:$('ed-autostart').checked,
+    proxies:collectProxies('ed-px'),
+  };
+  try{
+    let d;
+    if(editingId) d=await api(`/api/servers/${editingId}`,{method:'PUT',body:JSON.stringify(Object.assign({start},entry))});
+    else d=await api('/api/servers',{method:'POST',body:JSON.stringify(Object.assign({start},entry))});
+    closeOverlay('ov-editor'); toast(d.note||'已保存'); refreshServers();
+    if(!start && d.server) runConnTest(d.server);
+  }catch(e){ toast(e.message,false); }
+}
+
+// ---------- 导入 ----------
+function openImport(){
+  $('imp-code').value=''; $('imp-preview').innerHTML='';
+  $('imp-name').value=''; $('imp-name-wrap').style.display='none';
+  $('imp-btn').disabled=$('imp-btn2').disabled=true; importPayload=null;
+  openOverlay('ov-import');
+}
+async function doPreview(){
+  try{
+    const d=await api('/api/preview',{method:'POST',body:JSON.stringify({code:$('imp-code').value})});
+    importPayload=d;
+    const rows=(d.proxies||[]).map(p=>`<tr><td>${esc(p.type)}</td><td>${esc(p.name)}</td><td>${esc(p.localIp||'127.0.0.1')}:${p.localPort||''}</td><td>${p.remotePort||esc((p.customDomains||[]).join(',')||p.subDomain||'-')}</td></tr>`).join('');
+    $('imp-preview').innerHTML=`<div class="preview">
+      <div class="kv">
+        <b>名称</b><span>${esc(d.name||'（未命名）')}</span>
+        <b>服务器</b><span>${esc(d.addr)}:${d.port}</span>
+        ${d.user?`<b>用户</b><span>${esc(d.user)}</span>`:''}
+        <b>令牌</b><span>${d.hasToken?esc(d.tokenMasked):'<i style="color:#eab308">无（服务端未设 token）</i>'}</span>
+        <b>TLS / 协议</b><span>${d.tls?'启用':'禁用'} / ${esc(d.protocol)}</span>
+        ${d.expireAt?`<b>过期时间</b><span>${esc(d.expireAt)}</span>`:''}
+        ${d.note?`<b>备注</b><span>${esc(d.note)}</span>`:''}
+      </div>
+      ${rows?`<table><tr><th>类型</th><th>名称</th><th>本地</th><th>远程</th></tr>${rows}</table>`:'<div style="color:var(--dim);font-size:12px;margin-top:8px">（无预置穿透规则，导入后可自行添加）</div>'}
+    </div>`;
+    $('imp-name').value=d.name||d.addr;
+    $('imp-name-wrap').style.display='';
+    $('imp-btn').disabled=$('imp-btn2').disabled=false;
+  }catch(e){ toast(e.message,false); $('imp-btn').disabled=$('imp-btn2').disabled=true; importPayload=null; }
+}
+async function doImport(start){
+  if(!importPayload) return;
+  try{
+    const d=await api('/api/import',{method:'POST',body:JSON.stringify({code:$('imp-code').value,name:$('imp-name').value.trim()||undefined,start})});
+    closeOverlay('ov-import'); toast(d.note||('已导入「'+(d.server.name||d.server.serverAddr)+'」')); refreshServers();
+    if(!start && d.server) runConnTest(d.server);
+  }catch(e){ toast(e.message,false); }
+}
+
+// ---------- 生成 ----------
+async function doGenCode(){
+  const body={
+    name:$('gen-name').value.trim(), addr:$('gen-addr').value.trim(),
+    port:parseInt($('gen-port').value)||7000, user:$('gen-user').value.trim(),
+    token:$('gen-token').value, tls:$('gen-tls').checked, protocol:$('gen-proto').value,
+    enc:$('gen-enc').checked, cmp:$('gen-cmp').checked, note:$('gen-note').value.trim(),
+    expireAt:$('gen-expire').value||'', proxies:collectProxies('gen-px'),
+  };
+  if(!body.addr){ toast('请填写服务器地址',false); return; }
+  try{
+    const d=await api('/api/gencode',{method:'POST',body:JSON.stringify(body)});
+    $('gen-code').value=d.code; $('gen-result').style.display='';
+  }catch(e){ toast(e.message,false); }
+}
+
+// ---------- 日志 ----------
+function toggleLogAuto(){ logAuto=!logAuto; $('log-auto').textContent=logAuto?'暂停自动刷新':'▶ 恢复自动刷新'; if(logAuto) loadLogs(true); }
+async function loadLogs(force){
+  if(currentTab!=='logs'&&!force) return;
+  try{
+    const d=await api('/api/logs?n=400');
+    const pre=$('logs-pre'), stick=pre.scrollTop+pre.clientHeight>=pre.scrollHeight-30;
+    pre.textContent=(d.lines&&d.lines.length)?d.lines.join('\n'):'（暂无日志）';
+    if(stick) pre.scrollTop=pre.scrollHeight;
+  }catch(e){}
+}
+
+// ---------- 初始化 ----------
+async function initInfo(){
+  try{
+    const d=await api('/api/info');
+    $('set-ver').textContent=`FRPLink v${d.version} · 内核 frp v${d.frpVersion}`;
+    $('set-data').textContent='数据: '+d.dataFile; $('set-data').title=d.dataFile;
+  }catch(e){ $('set-ver').textContent='密钥无效，请从程序输出的地址打开'; }
+}
+initInfo(); refreshServers();
+setInterval(()=>{ if(currentTab==='servers') refreshServers(); },2000);
+setInterval(()=>{ if(currentTab==='logs'&&logAuto) loadLogs(); },2000);
+</script>
+</body>
+</html>
